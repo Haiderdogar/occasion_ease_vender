@@ -1,7 +1,10 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:occasionease/home/home_screen.dart';
 import 'package:occasionease/login/auth_repository.dart';
+import 'package:occasionease/service_selection/services_selction.dart';
 
 final emailProvider = StateProvider<String>((ref) => '');
 final passwordProvider = StateProvider<String>((ref) => '');
@@ -39,16 +42,54 @@ class AuthController {
             email: email,
             password: password,
           );
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-        (route) => false, // This ensures all previous routes are removed
-      );
+
+      await checkLoginStatus(context);
+
       _ref.read(errorMessageProvider.notifier).state = null;
     } catch (e) {
       _ref.read(errorMessageProvider.notifier).state = e.toString();
     } finally {
       _ref.read(isLoadingProvider.notifier).state = false;
     }
+  }
+}
+
+Future<void> checkLoginStatus(BuildContext context) async {
+  final FirebaseFirestore firestore = FirebaseFirestore.instance;
+  try {
+    final String userId = FirebaseAuth.instance.currentUser!.uid;
+    final DocumentReference userDoc =
+        firestore.collection('vendors').doc(userId);
+    final DocumentSnapshot snapshot = await userDoc.get();
+
+    if (!snapshot.exists) {
+      await userDoc.set({
+        'loginsuccess': false,
+      });
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const ServicesSelection()),
+        (route) => false,
+      );
+    } else {
+      final data = snapshot.data() as Map<String, dynamic>;
+      final bool loginSuccess = data['loginsuccess'] ?? false;
+
+      if (loginSuccess) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+          (route) => false,
+        );
+      } else {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const ServicesSelection()),
+          (route) => false,
+        );
+      }
+    }
+  } catch (e) {
+    throw Exception('Failed to check login status: $e');
   }
 }

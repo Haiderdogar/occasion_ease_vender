@@ -29,7 +29,7 @@ class LoginScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+                  'Lets connect with world.',
                   style: TextStyle(
                     color: Colors.grey,
                     fontSize: 16,
