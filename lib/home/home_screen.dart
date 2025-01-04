@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:occasionease/data_upload/marriage_hall_data_uploading/add_service_screen.dart';
+import 'package:occasionease/data_upload/beauty_polor/beautypoloar.dart';
+import 'package:occasionease/data_upload/catering/catering.dart';
+import 'package:occasionease/data_upload/mariage_hall/hall_data_upload.dart';
+import 'package:occasionease/data_upload/photographer/photographer.dart';
 import 'package:occasionease/login/login_screen.dart';
 
 // FutureProvider to fetch selected services from Firestore
@@ -145,13 +148,36 @@ class HomeScreen extends ConsumerWidget {
   }
 
   void _navigateToNextScreen(BuildContext context, String serviceName) {
-    // Navigate to the DataUploadScreen and pass service details
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AddServiceScreen(serviceName),
-      ),
-    );
+    if (serviceName == 'Beauty Parlors' || serviceName == 'Saloons') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => BeautyParlorForm(serviceName: serviceName),
+        ),
+      );
+    } else if (serviceName == 'Marriage Halls' ||
+        serviceName == 'Farm Houses') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => AddMarriageHallScreen(serviceName: serviceName),
+        ),
+      );
+    } else if (serviceName == 'Photographer') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhotographerServicesForm(),
+        ),
+      );
+    } else if (serviceName == 'Catering') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CateringServicesForm(),
+        ),
+      );
+    }
   }
 
   void _showLogoutDialog(BuildContext context) {
