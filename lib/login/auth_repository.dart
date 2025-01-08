@@ -3,14 +3,16 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:occasionease/home/home_screen.dart';
 import 'package:occasionease/service_selection/services_selction.dart';
+import 'package:occasionease/admin_files/adminscreen.dart';
 
 class AuthRepository {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  Future<UserCredential> signInWithEmailAndPassword({
+  Future<void> signInWithEmailAndPassword({
     required String email,
     required String password,
+    required BuildContext context,
   }) async {
     try {
       final userCredential = await _auth.signInWithEmailAndPassword(
@@ -18,12 +20,15 @@ class AuthRepository {
         password: password,
       );
 
-      // Check for admin login
       if (email == 'admin@gmail.com') {
-        return userCredential;
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminHomeScreen()),
+          (route) => false,
+        );
+        return;
       }
 
-      // Check vendor status in Firestore
       final userDoc = await _firestore
           .collection('vendors')
           .doc(userCredential.user!.uid)
@@ -35,7 +40,7 @@ class AuthRepository {
         );
       }
 
-      return userCredential;
+      await checkLoginStatus(context);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     }

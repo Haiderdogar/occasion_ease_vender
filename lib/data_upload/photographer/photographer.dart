@@ -206,7 +206,6 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      // Show loading indicator
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -215,10 +214,8 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
         },
       );
 
-      // Upload images and get URLs
       List<String> imageUrls = await _uploadImages();
 
-      // Collect all services with their prices
       List<Service> services = [];
       serviceCategories.forEach((category, serviceList) {
         serviceList.forEach((serviceName) {
@@ -247,14 +244,12 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
 
       await FirebaseFirestore.instance.collection('Photographer').add(data);
 
-      // Hide loading indicator
       Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Photographer services added successfully!')),
       );
     } catch (e) {
-      // Hide loading indicator
       Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -268,184 +263,216 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Add Photographer Services'),
+        backgroundColor: Colors.blue[100],
+        elevation: 0,
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: EdgeInsets.all(16),
-          children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: InputDecoration(
-                labelText: 'Photographer Name',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) => value?.isEmpty ?? true
-                  ? 'Please enter photographer name'
-                  : null,
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: _locationController,
-              decoration: InputDecoration(
-                labelText: 'Location',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) =>
-                  value?.isEmpty ?? true ? 'Please enter location' : null,
-            ),
-            SizedBox(height: 16),
-            TextFormField(
-              controller: _descriptionController,
-              decoration: InputDecoration(
-                labelText: 'Description',
-                border: OutlineInputBorder(),
-              ),
-              maxLines: 3,
-              validator: (value) =>
-                  value?.isEmpty ?? true ? 'Please enter description' : null,
-            ),
-            SizedBox(height: 24),
-            Text(
-              'Services',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            ...serviceCategories.entries.map((category) => Card(
-                  margin: EdgeInsets.symmetric(vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          category.key,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                        ),
-                      ),
-                      ListView.builder(
-                        shrinkWrap: true,
-                        physics: NeverScrollableScrollPhysics(),
-                        itemCount: category.value.length,
-                        itemBuilder: (context, index) {
-                          final service = category.value[index];
-                          return Padding(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  flex: 2,
-                                  child: Text(service),
-                                ),
-                                SizedBox(width: 16),
-                                Expanded(
-                                  child: TextFormField(
-                                    controller:
-                                        _servicePriceControllers[service],
-                                    decoration: InputDecoration(
-                                      labelText: 'Price',
-                                      prefixText: '₹',
-                                      border: OutlineInputBorder(),
-                                    ),
-                                    keyboardType: TextInputType.number,
-                                    validator: (value) {
-                                      if (value?.isEmpty ?? true)
-                                        return 'Required';
-                                      if (double.tryParse(value!) == null) {
-                                        return 'Invalid price';
-                                      }
-                                      return null;
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
-                )),
-            SizedBox(height: 24),
-            Text(
-              'Portfolio Images',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-            ElevatedButton.icon(
-              onPressed: _pickImages,
-              icon: Icon(Icons.add_photo_alternate),
-              label: Text('Add Images'),
-            ),
-            if (_images.isNotEmpty)
-              Container(
-                height: 120,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _images.length,
-                  itemBuilder: (context, index) => Stack(
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.all(8),
-                        child: Image.file(
-                          _images[index],
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                      Positioned(
-                        right: 0,
-                        top: 0,
-                        child: IconButton(
-                          icon: Icon(Icons.close),
-                          onPressed: () => _removeImage(index),
-                        ),
-                      ),
-                    ],
-                  ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.blue[50]!, Colors.white],
+          ),
+        ),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            padding: EdgeInsets.all(16),
+            children: [
+              _buildTextField(_nameController, 'Photographer Name'),
+              SizedBox(height: 16),
+              _buildTextField(_locationController, 'Location'),
+              SizedBox(height: 16),
+              _buildTextField(_descriptionController, 'Description',
+                  maxLines: 3),
+              SizedBox(height: 24),
+              _buildSectionTitle('Services'),
+              ..._buildServiceCategories(),
+              SizedBox(height: 24),
+              _buildSectionTitle('Portfolio Images'),
+              _buildImageSection(),
+              SizedBox(height: 24),
+              _buildSectionTitle('Availability'),
+              _buildTimeSlotSection(),
+              SizedBox(height: 24),
+              _buildSubmitButton(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField(TextEditingController controller, String label,
+      {int maxLines = 1}) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: TextFormField(
+          controller: controller,
+          decoration: InputDecoration(
+            labelText: label,
+            border: InputBorder.none,
+          ),
+          maxLines: maxLines,
+          validator: (value) =>
+              value?.isEmpty ?? true ? 'Please enter $label' : null,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        title,
+        style: TextStyle(
+            fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue[700]),
+      ),
+    );
+  }
+
+  List<Widget> _buildServiceCategories() {
+    return serviceCategories.entries
+        .map((category) => Card(
+              margin: EdgeInsets.symmetric(vertical: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: ExpansionTile(
+                title: Text(
+                  category.key,
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.blue[700]),
                 ),
+                children: category.value
+                    .map((service) => _buildServiceItem(service))
+                    .toList(),
               ),
-            SizedBox(height: 24),
-            Text(
-              'Availability',
-              style: Theme.of(context).textTheme.headlineMedium,
+            ))
+        .toList();
+  }
+
+  Widget _buildServiceItem(String service) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(service, style: TextStyle(fontSize: 16)),
+          ),
+          SizedBox(width: 16),
+          Expanded(
+            child: TextFormField(
+              controller: _servicePriceControllers[service],
+              decoration: InputDecoration(
+                labelText: 'Price',
+                prefixText: '₹',
+                border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              keyboardType: TextInputType.number,
             ),
-            ElevatedButton.icon(
-              onPressed: () => _addTimeSlot(context),
-              icon: Icon(Icons.access_time),
-              label: Text('Add Time Slot'),
-            ),
-            ..._timeSlots.map((slot) => Card(
-                  margin: EdgeInsets.symmetric(vertical: 8),
-                  child: ListTile(
-                    leading: Icon(Icons.access_time),
-                    title: Text('${slot.startTime} - ${slot.endTime}'),
-                    subtitle: Text('Capacity: ${slot.capacity}'),
-                    trailing: IconButton(
-                      icon: Icon(Icons.delete),
-                      onPressed: () {
-                        setState(() {
-                          _timeSlots.remove(slot);
-                        });
-                      },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImageSection() {
+    return Column(
+      children: [
+        ElevatedButton.icon(
+          onPressed: _pickImages,
+          icon: Icon(Icons.add_photo_alternate),
+          label: Text('Add Images'),
+          style: ElevatedButton.styleFrom(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        if (_images.isNotEmpty)
+          Container(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _images.length,
+              itemBuilder: (context, index) => Stack(
+                children: [
+                  Card(
+                    margin: EdgeInsets.all(8),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.file(
+                        _images[index],
+                        width: 100,
+                        height: 100,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
-                )),
-            SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submitForm,
-              child: Text('Add Photographer Services'),
-              style: ElevatedButton.styleFrom(
-                padding: EdgeInsets.symmetric(vertical: 16),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: IconButton(
+                      icon: Icon(Icons.close, color: Colors.white),
+                      onPressed: () => _removeImage(index),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
+          ),
+      ],
+    );
+  }
+
+  Widget _buildTimeSlotSection() {
+    return Column(
+      children: [
+        ElevatedButton.icon(
+          onPressed: () => _addTimeSlot(context),
+          icon: Icon(Icons.access_time),
+          label: Text('Add Time Slot'),
+          style: ElevatedButton.styleFrom(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
         ),
+        ..._timeSlots.map((slot) => Card(
+              margin: const EdgeInsets.symmetric(vertical: 8),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              child: ListTile(
+                leading: Icon(Icons.access_time, color: Colors.blue[700]),
+                title: Text('${slot.startTime} - ${slot.endTime}'),
+                subtitle: Text('Capacity: ${slot.capacity}'),
+                trailing: IconButton(
+                  icon: Icon(Icons.delete, color: Colors.blue[300]),
+                  onPressed: () {
+                    setState(() {
+                      _timeSlots.remove(slot);
+                    });
+                  },
+                ),
+              ),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return ElevatedButton(
+      onPressed: _submitForm,
+      child: Text('Add Photographer Services'),
+      style: ElevatedButton.styleFrom(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }

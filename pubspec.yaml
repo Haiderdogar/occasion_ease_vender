@@ -44,6 +44,9 @@ dependencies:
   google_maps_flutter: ^2.10.0
   geocoding: ^3.0.0
   fluttertoast: ^8.2.10
+  flutter_stripe: ^11.3.0
+  http: ^1.2.2
+  webview_flutter: ^4.8.0
 
 
   

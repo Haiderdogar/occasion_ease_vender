@@ -2,11 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:occasionease/data_upload/beauty_polor/beautypoloar.dart';
-import 'package:occasionease/data_upload/catering/catering.dart';
-import 'package:occasionease/data_upload/mariage_hall/hall_data_upload.dart';
-import 'package:occasionease/data_upload/photographer/photographer.dart';
 import 'package:occasionease/login/login_screen.dart';
+import 'package:occasionease/view_all_services/view.dart';
 
 // FutureProvider to fetch selected services from Firestore
 final servicesProvider = FutureProvider<List<String>>((ref) async {
@@ -27,25 +24,6 @@ final servicesProvider = FutureProvider<List<String>>((ref) async {
   }
 });
 
-void main() {
-  runApp(const ProviderScope(child: MyApp()));
-}
-
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Selected Services',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-      ),
-      home: const HomeScreen(),
-    );
-  }
-}
-
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -55,58 +33,62 @@ class HomeScreen extends ConsumerWidget {
     final servicesAsyncValue = ref.watch(servicesProvider);
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Text(
-          user?.email ?? 'User',
-          style: const TextStyle(color: Colors.black87, fontSize: 18),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: Colors.black87),
-            onPressed: () => _showLogoutDialog(context),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.blue.shade100, Colors.blue.shade50],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24.0),
+        ),
+        child: SafeArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Selected Services',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 24),
+              _buildAppBar(context, user),
               Expanded(
-                child: servicesAsyncValue.when(
-                  data: (services) => services.isEmpty
-                      ? const Center(child: Text('No services available'))
-                      : GridView.builder(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            childAspectRatio: 1.3,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                          ),
-                          itemCount: services.length,
-                          itemBuilder: (context, index) {
-                            final serviceName = services[index];
-                            return _buildButton(context, serviceName);
-                          },
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Selected Services',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.blue.shade800,
                         ),
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
-                  error: (error, stack) => Center(
-                    child: Text('Error: ${error.toString()}'),
+                      ),
+                      const SizedBox(height: 24),
+                      Expanded(
+                        child: servicesAsyncValue.when(
+                          data: (services) => services.isEmpty
+                              ? const Center(
+                                  child: Text('No services available'))
+                              : GridView.builder(
+                                  gridDelegate:
+                                      const SliverGridDelegateWithFixedCrossAxisCount(
+                                    crossAxisCount: 2,
+                                    childAspectRatio: 1.3,
+                                    crossAxisSpacing: 16,
+                                    mainAxisSpacing: 16,
+                                  ),
+                                  itemCount: services.length,
+                                  itemBuilder: (context, index) {
+                                    final serviceName = services[index];
+                                    return _buildServiceCard(
+                                        context, serviceName);
+                                  },
+                                ),
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (error, stack) => Center(
+                            child: Text('Error: ${error.toString()}'),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -117,67 +99,69 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildButton(BuildContext context, String label) {
-    return GestureDetector(
-      onTap: () => _navigateToNextScreen(context, label),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.blue.shade800,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.blue.shade200,
-              blurRadius: 8,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-            textAlign: TextAlign.center,
+  Widget _buildAppBar(BuildContext context, User? user) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: Colors.blue.shade600,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.person, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                user?.email ?? 'User',
+                style: const TextStyle(color: Colors.white, fontSize: 18),
+              ),
+            ],
           ),
-        ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () => _showLogoutDialog(context),
+          ),
+        ],
       ),
     );
   }
 
-  void _navigateToNextScreen(BuildContext context, String serviceName) {
-    if (serviceName == 'Beauty Parlors' || serviceName == 'Saloons') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => BeautyParlorForm(serviceName: serviceName),
+  Widget _buildServiceCard(BuildContext context, String serviceName) {
+    return Card(
+      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (context) =>
+                    ServicesViewScreen(serviceName: serviceName)),
+          );
+          ;
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Colors.blue.shade400, Colors.blue.shade600],
+            ),
+          ),
+          child: Center(
+            child: Text(
+              serviceName,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
         ),
-      );
-    } else if (serviceName == 'Marriage Halls' ||
-        serviceName == 'Farm Houses') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => AddMarriageHallScreen(serviceName: serviceName),
-        ),
-      );
-    } else if (serviceName == 'Photographer') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PhotographerServicesForm(),
-        ),
-      );
-    } else if (serviceName == 'Catering') {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => CateringServicesForm(),
-        ),
-      );
-    }
+      ),
+    );
   }
 
   void _showLogoutDialog(BuildContext context) {
