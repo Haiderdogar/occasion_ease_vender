@@ -5,6 +5,10 @@ import 'package:occasionease/data_upload/beauty_polor/beautypoloar.dart';
 import 'package:occasionease/data_upload/catering/catering.dart';
 import 'package:occasionease/data_upload/mariage_hall/hall_data_upload.dart';
 import 'package:occasionease/data_upload/photographer/photographer.dart';
+import 'package:occasionease/edit_screens/catering_edit_screen.dart';
+import 'package:occasionease/edit_screens/mariagehall_and_farmhouse_edit.dart';
+import 'package:occasionease/edit_screens/photographer_edit_screen.dart';
+import 'package:occasionease/edit_screens/saloon_and_parlar_edit.dart';
 import 'package:occasionease/stripe_payment/payment.dart';
 
 class ServicesViewScreen extends StatelessWidget {
@@ -37,16 +41,15 @@ class ServicesViewScreen extends StatelessWidget {
         context, MaterialPageRoute(builder: (context) => nextScreen));
   }
 
-  Future<List<ServiceModel>> _fetchServices(
-      String serviceName, String userId) async {
-    QuerySnapshot snapshot = await FirebaseFirestore.instance
+  Stream<List<ServiceModel>> _streamServices(
+      String serviceName, String userId) {
+    return FirebaseFirestore.instance
         .collection(serviceName)
         .where('userId', isEqualTo: userId)
-        .get();
-
-    return snapshot.docs
-        .map((doc) => ServiceModel.fromFirestore(doc, serviceName))
-        .toList();
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ServiceModel.fromFirestore(doc, serviceName))
+            .toList());
   }
 
   Future<void> _deleteService(String serviceName, String documentId) async {
@@ -77,25 +80,19 @@ class ServicesViewScreen extends StatelessWidget {
         elevation: 0,
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.blue[700]!, Colors.blue[100]!],
-          ),
-        ),
-        child: FutureBuilder<List<ServiceModel>>(
-          future: _fetchServices(serviceName, userId),
+        color: Colors.blue[50],
+        child: StreamBuilder<List<ServiceModel>>(
+          stream: _streamServices(serviceName, userId),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               return Center(
                   child: Text('Error: ${snapshot.error}',
-                      style: TextStyle(color: Colors.white)));
+                      style: TextStyle(color: Colors.blue[700])));
             }
 
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
-                  child: CircularProgressIndicator(color: Colors.white));
+                  child: CircularProgressIndicator(color: Colors.blue));
             }
 
             final services = snapshot.data ?? [];
@@ -103,7 +100,7 @@ class ServicesViewScreen extends StatelessWidget {
             if (services.isEmpty) {
               return Center(
                   child: Text('No services found.',
-                      style: TextStyle(color: Colors.white)));
+                      style: TextStyle(color: Colors.blue[700])));
             }
 
             return ListView.builder(
@@ -113,73 +110,117 @@ class ServicesViewScreen extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   child: Card(
-                    elevation: 8,
+                    elevation: 4,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(15)),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Stack(
-                        children: [
-                          Image.network(
+                        borderRadius: BorderRadius.circular(12)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius:
+                              BorderRadius.vertical(top: Radius.circular(12)),
+                          child: Image.network(
                             services[index].imageUrl,
-                            height: 200,
+                            height: 150,
                             width: double.infinity,
                             fit: BoxFit.cover,
                           ),
-                          Positioned.fill(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    Colors.transparent,
-                                    Colors.black.withOpacity(0.7)
-                                  ],
-                                ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                services[index].name,
+                                style: TextStyle(
+                                    color: Colors.blue[700],
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold),
                               ),
-                            ),
-                          ),
-                          Positioned(
-                            bottom: 16,
-                            left: 16,
-                            right: 16,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  services[index].name,
-                                  style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold),
-                                ),
-                                SizedBox(height: 8),
-                                Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    ElevatedButton(
+                              SizedBox(height: 16),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      icon: Icons.edit,
+                                      label: 'Edit',
+                                      color: Colors.blue,
                                       onPressed: () {
-                                        // Handle Edit action
+                                        if (serviceName == 'Catering') {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EditCateringServicesForm(
+                                                      docId:
+                                                          services[index].id),
+                                            ),
+                                          );
+                                        } else if (serviceName ==
+                                            'Photographer') {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EditPhotographerServicesForm(
+                                                      docId:
+                                                          services[index].id),
+                                            ),
+                                          );
+                                        } else if (serviceName ==
+                                                'Marriage Halls' ||
+                                            serviceName == 'Farm Houses') {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EditMarriageHallScreen(
+                                                serviceName: serviceName,
+                                                documentId: services[index].id,
+                                              ),
+                                            ),
+                                          );
+                                        } else if (serviceName ==
+                                                'Beauty Parlors' ||
+                                            serviceName == 'Saloons') {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  EditBeautyParlorForm(
+                                                serviceName: serviceName,
+                                                documentId: services[index].id,
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                        ;
                                       },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.blue[300],
-                                      ),
-                                      child: Text('Edit'),
                                     ),
-                                    FutureBuilder<bool>(
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: FutureBuilder<bool>(
                                       future: _checkIfPromotionExists(
                                           serviceName, services[index].id),
                                       builder: (context, promoSnapshot) {
                                         if (promoSnapshot.connectionState ==
                                             ConnectionState.waiting) {
-                                          return CircularProgressIndicator(
-                                              color: Colors.white);
+                                          return const Center(
+                                              child: CircularProgressIndicator(
+                                                  color: Colors.blue));
                                         }
                                         final isPromoted =
                                             promoSnapshot.data ?? false;
-                                        return ElevatedButton(
+                                        return _buildActionButton(
+                                          icon: Icons.star,
+                                          label: isPromoted
+                                              ? 'Promoted'
+                                              : 'Promote',
+                                          color: isPromoted
+                                              ? Colors.grey
+                                              : Colors.green,
                                           onPressed: isPromoted
                                               ? null
                                               : () {
@@ -196,36 +237,61 @@ class ServicesViewScreen extends StatelessWidget {
                                                     ),
                                                   );
                                                 },
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: isPromoted
-                                                ? Colors.grey
-                                                : Colors.green,
-                                          ),
-                                          child: Text(isPromoted
-                                              ? 'Promoted'
-                                              : 'Promote'),
                                         );
                                       },
                                     ),
-                                    ElevatedButton(
+                                  ),
+                                  SizedBox(width: 8),
+                                  Expanded(
+                                    child: _buildActionButton(
+                                      icon: Icons.delete,
+                                      label: 'Delete',
+                                      color: Colors.red,
                                       onPressed: () async {
-                                        await _deleteService(
-                                            serviceName, services[index].id);
-                                        // Refresh the screen after deletion
-                                        (context as Element).markNeedsBuild();
+                                        bool? confirmDelete = await showDialog(
+                                          context: context,
+                                          builder: (BuildContext context) {
+                                            return AlertDialog(
+                                              title: Text('Confirm Delete'),
+                                              content: Text(
+                                                  'Are you sure you want to delete this service?'),
+                                              actions: [
+                                                TextButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          context, false),
+                                                  child: Text('Cancel'),
+                                                ),
+                                                ElevatedButton(
+                                                  onPressed: () =>
+                                                      Navigator.pop(
+                                                          context, true),
+                                                  child: Text('Delete'),
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor: Colors.red,
+                                                    foregroundColor:
+                                                        Colors.white,
+                                                  ),
+                                                ),
+                                              ],
+                                            );
+                                          },
+                                        );
+
+                                        if (confirmDelete == true) {
+                                          await _deleteService(
+                                              serviceName, services[index].id);
+                                        }
                                       },
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: Colors.red,
-                                      ),
-                                      child: Text('Delete'),
                                     ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -234,11 +300,31 @@ class ServicesViewScreen extends StatelessWidget {
           },
         ),
       ),
-      floatingActionButton: FloatingActionButton(
+      floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navigateToNextScreen(context, serviceName),
-        tooltip: 'Add $serviceName',
-        child: const Icon(Icons.add),
+        label: Text('Add $serviceName'),
+        icon: const Icon(Icons.add),
         backgroundColor: Colors.blue[700],
+      ),
+    );
+  }
+
+  Widget _buildActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback? onPressed,
+  }) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
       ),
     );
   }

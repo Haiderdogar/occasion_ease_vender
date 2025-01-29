@@ -360,7 +360,7 @@ class _CateringServicesFormState extends State<CateringServicesForm> {
               controller: _servicePriceControllers[service],
               decoration: InputDecoration(
                 labelText: 'Price',
-                prefixText: '₹',
+                prefixText: 'Rs-',
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),

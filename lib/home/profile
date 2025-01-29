@@ -1,0 +1,284 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+class ProfileScreen extends ConsumerStatefulWidget {
+  const ProfileScreen({super.key});
+
+  @override
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  final FirebaseAuth _auth = FirebaseAuth.instance;
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final ImagePicker _picker = ImagePicker();
+  late TextEditingController _usernameController;
+  bool _isEditing = false;
+  File? _image;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameController = TextEditingController();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    final userDoc = await _firestore.collection('newVendors').doc(user.uid).get();
+    if (userDoc.exists) {
+      final data = userDoc.data() as Map<String, dynamic>;
+      _usernameController.text = data['username'] ?? '';
+    }
+  }
+
+  Future<void> _updateUsername() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    await _firestore.collection('newVendors').doc(user.uid).update({
+      'username': _usernameController.text,
+    });
+    setState(() {
+      _isEditing = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Username updated successfully!')),
+    );
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile != null) {
+      setState(() {
+        _image = File(pickedFile.path);
+      });
+      await _uploadImage();
+    }
+  }
+
+  Future<void> _uploadImage() async {
+    final user = _auth.currentUser;
+    if (user == null || _image == null) return;
+
+    // Upload image to Firebase Storage
+    final ref = _storage.ref().child('profileImages/${user.uid}.jpg');
+    await ref.putFile(_image!);
+
+    // Get download URL
+    final url = await ref.getDownloadURL();
+
+    // Save URL to Firestore
+    await _firestore.collection('newVendors').doc(user.uid).update({
+      'profileImage': url,
+    });
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Scaffold(
+        body: Center(child: Text('No user logged in')),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile', style: TextStyle(color: Colors.white)),
+        backgroundColor: Colors.blue.shade800,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Colors.blue.shade50, Colors.blue.shade100],
+          ),
+        ),
+        child: StreamBuilder<DocumentSnapshot>(
+          stream: _firestore.collection('newVendors').doc(user.uid).snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error: ${snapshot.error}',
+                  style: TextStyle(color: Colors.red.shade800),
+                ),
+              );
+            }
+
+            if (!snapshot.hasData || !snapshot.data!.exists) {
+              return const Center(child: Text('No profile data found'));
+            }
+
+            final data = snapshot.data!.data() as Map<String, dynamic>;
+            final email = data['email'] ?? 'No email';
+            final username = data['username'] ?? 'No username';
+            final isVerified = data['isVerified'] ?? false;
+            final profileImage = data['profileImage'] as String?;
+
+            return Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: CircleAvatar(
+                        radius: 50,
+                        backgroundColor: Colors.blue.shade800,
+                        backgroundImage: profileImage != null
+                            ? NetworkImage(profileImage)
+                            : null,
+                        child: profileImage == null
+                            ? const Icon(
+                                Icons.person,
+                                size: 50,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildVerificationStatus(isVerified),
+                  const SizedBox(height: 16),
+                  _buildProfileField('Email', email, false),
+                  const SizedBox(height: 16),
+                  _buildProfileField('Username', username, true),
+                  if (_isEditing) // Show Save Button only when editing
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Center(
+                        child: ElevatedButton(
+                          onPressed: _updateUsername,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade800,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 32, vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: const Text(
+                            'Save',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileField(String label, String value, bool isEditable) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.blue.shade800,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (isEditable && _isEditing)
+          TextField(
+            controller: _usernameController,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          )
+        else
+          InkWell(
+            onTap: isEditable
+                ? () {
+                    setState(() {
+                      _isEditing = true;
+                    });
+                  }
+                : null,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.blue.shade400),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      style: TextStyle(
+                        fontSize: 16,
+                        color: Colors.blue.shade800,
+                      ),
+                    ),
+                  ),
+                  if (isEditable)
+                    const Icon(Icons.edit, color: Colors.blue),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildVerificationStatus(bool isVerified) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          isVerified ? Icons.verified : Icons.warning,
+          color: isVerified ? Colors.green : Colors.orange,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          isVerified ? 'Verified User' : 'Not Verified',
+          style: TextStyle(
+            fontSize: 16,
+            color: isVerified ? Colors.green : Colors.orange,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}

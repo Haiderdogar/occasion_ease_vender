@@ -177,13 +177,13 @@ class _StripePaymentState extends State<StripePayment> {
   Future<void> makePayment(
       {required String docId, required String serviceName}) async {
     try {
-      paymentIntentData = await createPaymentIntent("200", "PKR");
+      paymentIntentData = await createPaymentIntent("2000000", "PKR");
 
       if (paymentIntentData != null) {
         await Stripe.instance.initPaymentSheet(
           paymentSheetParameters: SetupPaymentSheetParameters(
             paymentIntentClientSecret: paymentIntentData!['client_secret'],
-            merchantDisplayName: 'Haider',
+            merchantDisplayName: 'Occasion Ease',
             style: ThemeMode.dark,
             appearance: const PaymentSheetAppearance(
               colors: PaymentSheetAppearanceColors(
@@ -219,6 +219,7 @@ class _StripePaymentState extends State<StripePayment> {
         );
       }
       await storePaymentDataInFirestore(docId: docId, serviceName: serviceName);
+      Navigator.of(context).pop();
     } on StripeException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

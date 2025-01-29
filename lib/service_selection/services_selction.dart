@@ -129,12 +129,11 @@ class ServicesSelection extends ConsumerWidget {
         ref.read(loadingProvider.notifier).state = true;
 
         final vendorsCollection =
-            FirebaseFirestore.instance.collection('vendors');
+            FirebaseFirestore.instance.collection('newVendors');
         final userDoc = vendorsCollection.doc(user.uid);
 
         // Update loginsuccess and selected services
         await userDoc.set({
-          'loginsuccess': true,
           'selectedServices': selectedServices,
         }, SetOptions(merge: true));
 

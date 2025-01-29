@@ -373,7 +373,7 @@ class _BeautyParlorFormState extends State<BeautyParlorForm> {
               controller: _servicePriceControllers[service],
               decoration: InputDecoration(
                 labelText: 'Price',
-                prefixText: '₹',
+                prefixText: 'Rs-',
                 border:
                     OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),

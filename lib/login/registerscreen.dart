@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:occasionease/login/auth_provider.dart';
-import 'package:occasionease/login/registerscreen.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
-class LoginScreen extends ConsumerWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+import 'package:occasionease/login/auth_provider.dart';
+
+class RegisterScreen extends ConsumerWidget {
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isLoading = ref.watch(isLoadingProvider);
     final errorMessage = ref.watch(errorMessageProvider);
+    final cnicImages = ref.watch(cnicImagesProvider);
 
     return Scaffold(
       body: Container(
@@ -28,9 +31,8 @@ class LoginScreen extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: 40),
                   const Text(
-                    'Occasion Ease',
+                    'Vendor Registration',
                     style: TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
@@ -38,16 +40,21 @@ class LoginScreen extends ConsumerWidget {
                     ),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Let\'s connect with the world.',
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
                   const SizedBox(height: 40),
+                  TextField(
+                    onChanged: (value) =>
+                        ref.read(usernameProvider.notifier).state = value,
+                    decoration: InputDecoration(
+                      hintText: 'Username',
+                      filled: true,
+                      fillColor: Colors.white.withOpacity(0.9),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                   TextField(
                     onChanged: (value) =>
                         ref.read(emailProvider.notifier).state = value,
@@ -77,6 +84,59 @@ class LoginScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: cnicImages.length >= 2
+                        ? null
+                        : () async {
+                            final ImagePicker _picker = ImagePicker();
+                            final XFile? image = await _picker.pickImage(
+                                source: ImageSource.gallery);
+                            if (image != null) {
+                              ref.read(cnicImagesProvider.notifier).state = [
+                                ...cnicImages,
+                                image.path
+                              ];
+                            }
+                          },
+                    child: Text('Upload CNIC Image (${cnicImages.length}/2)'),
+                  ),
+                  const SizedBox(height: 16),
+                  if (cnicImages.isNotEmpty)
+                    SizedBox(
+                      height: 100,
+                      child: ListView.builder(
+                        scrollDirection: Axis.horizontal,
+                        itemCount: cnicImages.length,
+                        itemBuilder: (context, index) {
+                          return Stack(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.all(8.0),
+                                child: Image.file(
+                                  File(cnicImages[index]),
+                                  height: 80,
+                                  width: 120,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: IconButton(
+                                  icon: Icon(Icons.close, color: Colors.red),
+                                  onPressed: () {
+                                    ref
+                                        .read(cnicImagesProvider.notifier)
+                                        .state = List.from(cnicImages)
+                                      ..removeAt(index);
+                                  },
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
                   if (errorMessage != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8.0),
@@ -92,7 +152,7 @@ class LoginScreen extends ConsumerWidget {
                         ? null
                         : () => ref
                             .read(authControllerProvider)
-                            .signInWithEmailAndPassword(context: context),
+                            .registerVendor(context: context),
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -102,7 +162,7 @@ class LoginScreen extends ConsumerWidget {
                     child: isLoading
                         ? const CircularProgressIndicator(color: Colors.blue)
                         : const Text(
-                            'Sign in',
+                            'Register',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
@@ -112,24 +172,10 @@ class LoginScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   TextButton(
                     onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const RegisterScreen()),
-                      );
+                      Navigator.pop(context);
                     },
                     child: const Text(
-                      'New vendor? Register here',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () {
-                      _showForgotPasswordDialog(context, ref);
-                    },
-                    child: const Text(
-                      'Forgot Password?',
+                      'Already have an account? Login here',
                       style: TextStyle(color: Colors.white),
                     ),
                   ),
@@ -139,76 +185,6 @@ class LoginScreen extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  void _showForgotPasswordDialog(BuildContext context, WidgetRef ref) {
-    final emailController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Forgot Password'),
-          content: TextField(
-            controller: emailController,
-            decoration: const InputDecoration(
-              hintText: 'Enter your email',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final email = emailController.text.trim();
-                if (email.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please enter your email.'),
-                    ),
-                  );
-                  return;
-                }
-
-                if (email.toLowerCase() == 'admin@gmail.com') {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content:
-                          Text('Password reset is not allowed for this email.'),
-                    ),
-                  );
-                  return;
-                }
-
-                try {
-                  await ref
-                      .read(authControllerProvider)
-                      .sendPasswordResetEmail(email);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                          'Password reset email sent. Please check your inbox.'),
-                    ),
-                  );
-                  Navigator.pop(context);
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to send password reset email: $e'),
-                    ),
-                  );
-                }
-              },
-              child: const Text('Reset Password'),
-            ),
-          ],
-        );
-      },
     );
   }
 }

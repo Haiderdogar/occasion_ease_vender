@@ -5,49 +5,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:io';
 
-class Service {
-  final String name;
-  final double price;
-  final String category;
+import 'package:occasionease/data_upload/beauty_polor/beautypoloar.dart';
 
-  Service({
-    required this.name,
-    required this.price,
-    required this.category,
-  });
+class EditBeautyParlorForm extends StatefulWidget {
+  final String serviceName;
+  final String documentId;
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'price': price,
-        'category': category,
-      };
-}
+  const EditBeautyParlorForm({
+    Key? key,
+    required this.serviceName,
+    required this.documentId,
+  }) : super(key: key);
 
-class TimeSlot {
-  final String startTime;
-  final String endTime;
-  final int capacity;
-
-  TimeSlot({
-    required this.startTime,
-    required this.endTime,
-    required this.capacity,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'startTime': startTime,
-        'endTime': endTime,
-        'capacity': capacity,
-      };
-}
-
-class PhotographerServicesForm extends StatefulWidget {
   @override
-  _PhotographerServicesFormState createState() =>
-      _PhotographerServicesFormState();
+  _EditBeautyParlorFormState createState() => _EditBeautyParlorFormState();
 }
 
-class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
+class _EditBeautyParlorFormState extends State<EditBeautyParlorForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
@@ -55,47 +29,76 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
 
   List<File> _images = [];
   List<TimeSlot> _timeSlots = [];
+  List<String> _existingImageUrls = [];
 
   final Map<String, TextEditingController> _servicePriceControllers = {};
 
   final Map<String, List<String>> serviceCategories = {
-    'Event Photography': [
-      'Weddings',
-      'Corporate events',
-      'Birthdays',
-      'Anniversaries',
-      'Graduations',
-      'Engagement and Pre-wedding Photoshoots',
+    'Hair Services': [
+      'Haircut (Basic, Layers, Bob)',
+      'Hair Coloring (Full Color, Highlights, Balayage)',
+      'Hair Styling (Blow Dry, Straightening, Curls)',
+      'Keratin Treatment',
+      'Bridal Hair Styling (Traditional, Updos)',
     ],
-    'Portrait & Personal Photography': [
-      'Family portraits',
-      'Couples photoshoots',
-      'Individual portraits',
-      'Maternity photoshoots',
+    'Skin and Facial Services': [
+      'Facials (Deep Cleanse, Anti-aging, Hydrating)',
+      'Chemical Peels (Exfoliating, Skin Rejuvenation)',
+      'Threading (Eyebrows, Upper Lip, Chin)',
+      'Face Masks (Hydrating, Detoxifying)',
+      'Microblading (Eyebrows)',
     ],
-    'Commercial & Product Photography': [
-      'E-commerce product photos',
-      'Flat lay photography',
-      'Food photography',
-      'Real Estate Photography (Interior & Exterior)',
-      'Commercial Photography (Advertising, branding, etc.)',
+    'Nail Services': [
+      'Manicure (Classic, Gel, French)',
+      'Pedicure (Classic, Spa, Gel)',
+      'Nail Art (Designs, Stamping)',
+      'Nail Extensions (Acrylic, Gel)',
+      'Polish Change',
     ],
-    'Specialized & Add-on Services': [
-      'Photo Editing and Retouching (Basic & Advanced)',
-      'Photobooth Rental (Setup, printouts, customizable strips)',
-      'Destination Photography (Travel shoots for weddings or vacations)',
-      'Custom Packages (Tailored services based on client needs)',
+    'Makeup Services': [
+      'Bridal Makeup (Traditional, Airbrush, HD)',
+      'Party Makeup (For Events, Celebrations)',
+      'Makeup for Photoshoots',
+      'Eye Makeup (Eyebrow Shaping, Eyelash Extensions)',
     ],
   };
 
   @override
   void initState() {
     super.initState();
-    serviceCategories.forEach((category, services) {
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    final doc = await FirebaseFirestore.instance
+        .collection(widget.serviceName)
+        .doc(widget.documentId)
+        .get();
+
+    if (doc.exists) {
+      final data = doc.data() as Map<String, dynamic>;
+      _nameController.text = data['parlorName'];
+      _locationController.text = data['location'];
+      _descriptionController.text = data['description'];
+      _existingImageUrls = List<String>.from(data['imageUrls']);
+
+      final services = List<Map<String, dynamic>>.from(data['services']);
       services.forEach((service) {
-        _servicePriceControllers[service] = TextEditingController();
+        _servicePriceControllers[service['name']] =
+            TextEditingController(text: service['price'].toString());
       });
-    });
+
+      final timeSlots = List<Map<String, dynamic>>.from(data['timeSlots']);
+      _timeSlots = timeSlots
+          .map((slot) => TimeSlot(
+                startTime: slot['startTime'],
+                endTime: slot['endTime'],
+                capacity: slot['capacity'],
+              ))
+          .toList();
+
+      setState(() {});
+    }
   }
 
   Future<void> _pickImages() async {
@@ -113,6 +116,12 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
   void _removeImage(int index) {
     setState(() {
       _images.removeAt(index);
+    });
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() {
+      _existingImageUrls.removeAt(index);
     });
   }
 
@@ -191,7 +200,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     final storage = FirebaseStorage.instance;
     for (var image in _images) {
       final fileName = DateTime.now().millisecondsSinceEpoch.toString();
-      final reference = storage.ref().child('photographer_images/$fileName');
+      final reference = storage.ref().child('${widget.serviceName}/$fileName');
       await reference.putFile(image);
       final url = await reference.getDownloadURL();
       imageUrls.add(url);
@@ -199,7 +208,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     return imageUrls;
   }
 
-  Future<void> _submitForm() async {
+  Future<void> _updateForm() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
@@ -210,11 +219,12 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
         context: context,
         barrierDismissible: false,
         builder: (BuildContext context) {
-          return Center(child: CircularProgressIndicator());
+          return const Center(child: CircularProgressIndicator());
         },
       );
 
-      List<String> imageUrls = await _uploadImages();
+      List<String> newImageUrls = await _uploadImages();
+      List<String> allImageUrls = [..._existingImageUrls, ...newImageUrls];
 
       List<Service> services = [];
       serviceCategories.forEach((category, serviceList) {
@@ -233,21 +243,24 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
 
       final data = {
         'userId': user.uid,
-        'photographerName': _nameController.text,
+        'parlorName': _nameController.text,
         'location': _locationController.text,
         'description': _descriptionController.text,
         'services': services.map((s) => s.toJson()).toList(),
         'timeSlots': _timeSlots.map((t) => t.toJson()).toList(),
-        'imageUrls': imageUrls,
-        'createdAt': FieldValue.serverTimestamp(),
+        'imageUrls': allImageUrls,
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance.collection('Photographer').add(data);
+      await FirebaseFirestore.instance
+          .collection(widget.serviceName)
+          .doc(widget.documentId)
+          .update(data);
 
       Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Photographer services added successfully!')),
+        SnackBar(content: Text('${widget.serviceName} updated successfully!')),
       );
     } catch (e) {
       Navigator.of(context).pop();
@@ -262,7 +275,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add Photographer Services'),
+        title: Text('Edit ${widget.serviceName}'),
         backgroundColor: Colors.blue[100],
         elevation: 0,
       ),
@@ -279,7 +292,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
           child: ListView(
             padding: EdgeInsets.all(16),
             children: [
-              _buildTextField(_nameController, 'Photographer Name'),
+              _buildTextField(_nameController, 'Name of ${widget.serviceName}'),
               SizedBox(height: 16),
               _buildTextField(_locationController, 'Location'),
               SizedBox(height: 16),
@@ -289,13 +302,13 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
               _buildSectionTitle('Services'),
               ..._buildServiceCategories(),
               SizedBox(height: 24),
-              _buildSectionTitle('Portfolio Images'),
+              _buildSectionTitle('Images'),
               _buildImageSection(),
               SizedBox(height: 24),
-              _buildSectionTitle('Availability'),
+              _buildSectionTitle('Time Slots'),
               _buildTimeSlotSection(),
               SizedBox(height: 24),
-              _buildSubmitButton(),
+              _buildUpdateButton(),
             ],
           ),
         ),
@@ -394,38 +407,70 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
-        if (_images.isNotEmpty)
+        if (_existingImageUrls.isNotEmpty || _images.isNotEmpty)
           Container(
             height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _images.length,
-              itemBuilder: (context, index) => Stack(
-                children: [
-                  Card(
-                    margin: EdgeInsets.all(8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        _images[index],
-                        width: 100,
-                        height: 100,
-                        fit: BoxFit.cover,
+              itemCount: _existingImageUrls.length + _images.length,
+              itemBuilder: (context, index) {
+                if (index < _existingImageUrls.length) {
+                  return Stack(
+                    children: [
+                      Card(
+                        margin: EdgeInsets.all(8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _existingImageUrls[index],
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: IconButton(
-                      icon: Icon(Icons.close, color: Colors.white),
-                      onPressed: () => _removeImage(index),
-                    ),
-                  ),
-                ],
-              ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: IconButton(
+                          icon: Icon(Icons.close, color: Colors.white),
+                          onPressed: () => _removeExistingImage(index),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  final imageIndex = index - _existingImageUrls.length;
+                  return Stack(
+                    children: [
+                      Card(
+                        margin: EdgeInsets.all(8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _images[imageIndex],
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        right: 0,
+                        top: 0,
+                        child: IconButton(
+                          icon: Icon(Icons.close, color: Colors.white),
+                          onPressed: () => _removeImage(imageIndex),
+                        ),
+                      ),
+                    ],
+                  );
+                }
+              },
             ),
           ),
       ],
@@ -445,7 +490,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
           ),
         ),
         ..._timeSlots.map((slot) => Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
+              margin: EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               child: ListTile(
@@ -466,10 +511,10 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildUpdateButton() {
     return ElevatedButton(
-      onPressed: _submitForm,
-      child: Text('Add Photographer Services'),
+      onPressed: _updateForm,
+      child: Text('Update Services'),
       style: ElevatedButton.styleFrom(
         padding: EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),

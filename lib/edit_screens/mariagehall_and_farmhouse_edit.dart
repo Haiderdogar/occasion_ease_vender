@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -6,16 +7,21 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:occasionease/data_upload/mariage_hall/add_time_slot.dart';
 
-class AddMarriageHallScreen extends StatefulWidget {
+class EditMarriageHallScreen extends StatefulWidget {
   final String serviceName;
-  const AddMarriageHallScreen({Key? key, required this.serviceName})
-      : super(key: key);
+  final String documentId;
+
+  const EditMarriageHallScreen({
+    Key? key,
+    required this.serviceName,
+    required this.documentId,
+  }) : super(key: key);
 
   @override
-  _AddMarriageHallScreenState createState() => _AddMarriageHallScreenState();
+  _EditMarriageHallScreenState createState() => _EditMarriageHallScreenState();
 }
 
-class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
+class _EditMarriageHallScreenState extends State<EditMarriageHallScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
@@ -24,22 +30,72 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
   final _pricePerSeatController = TextEditingController();
 
   List<TimeSlot> _timeSlots = [];
-  List<AdditionalService> _additionalServices = [
-    AdditionalService(name: 'Decor', price: 0),
-    AdditionalService(name: 'Catering', price: 0),
-    AdditionalService(name: 'DJ', price: 0),
-    AdditionalService(name: 'Photography', price: 0),
-    AdditionalService(name: 'Air Conditioning/Heating', price: 0),
-  ];
-
+  List<AdditionalService> _additionalServices = [];
   List<File> _images = [];
+  List<String> _existingImageUrls = [];
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchData();
+  }
+
+  Future<void> _fetchData() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection(widget.serviceName)
+          .doc(widget.documentId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        _nameController.text = data['name'];
+        _locationController.text = data['location'];
+        _maxCapacityController.text = data['maxCapacity'].toString();
+        _minCapacityController.text = data['minCapacity'].toString();
+        _pricePerSeatController.text = data['pricePerSeat'].toString();
+        _existingImageUrls = List<String>.from(data['imageUrls']);
+
+        _timeSlots = (data['timeSlots'] as List)
+            .map((slot) => TimeSlot(
+                  startTime: slot['startTime'],
+                  endTime: slot['endTime'],
+                  price: slot['price'],
+                  maxEvents: slot['maxEvents'],
+                ))
+            .toList();
+
+        _additionalServices = (data['additionalServices'] as List)
+            .map((service) => AdditionalService(
+                  name: service['name'],
+                  price: service['price'],
+                ))
+            .toList();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error fetching data: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add ${widget.serviceName}'),
+        title: Text('Edit ${widget.serviceName}'),
         backgroundColor: Colors.blue[100],
         elevation: 0,
       ),
@@ -150,46 +206,83 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
           ),
         ),
         const SizedBox(height: 10),
-        if (_images.isNotEmpty)
+        if (_images.isNotEmpty || _existingImageUrls.isNotEmpty)
           SizedBox(
             height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _images.length,
+              itemCount: _images.length + _existingImageUrls.length,
               itemBuilder: (context, index) {
-                return Stack(
-                  children: [
-                    Card(
-                      margin: const EdgeInsets.all(4),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.file(
-                          _images[index],
-                          width: 100,
-                          height: 100,
-                          fit: BoxFit.cover,
-                        ),
-                      ),
-                    ),
-                    Positioned(
-                      top: 0,
-                      right: 0,
-                      child: GestureDetector(
-                        onTap: () => _removeImage(index),
-                        child: Container(
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(12),
+                if (index < _existingImageUrls.length) {
+                  return Stack(
+                    children: [
+                      Card(
+                        margin: const EdgeInsets.all(4),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            _existingImageUrls[index],
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
                           ),
-                          child:
-                              Icon(Icons.close, color: Colors.white, size: 20),
                         ),
                       ),
-                    ),
-                  ],
-                );
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () => _removeExistingImage(index),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.close,
+                                color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                } else {
+                  final imageIndex = index - _existingImageUrls.length;
+                  return Stack(
+                    children: [
+                      Card(
+                        margin: const EdgeInsets.all(4),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _images[imageIndex],
+                            width: 100,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: () => _removeImage(imageIndex),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(Icons.close,
+                                color: Colors.white, size: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }
               },
             ),
           ),
@@ -296,9 +389,9 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
-        onPressed: _submitForm,
+        onPressed: _updateForm,
         child: Text(
-          'Add ${widget.serviceName}',
+          'Update ${widget.serviceName}',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
         ),
       ),
@@ -356,6 +449,12 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
     });
   }
 
+  void _removeExistingImage(int index) {
+    setState(() {
+      _existingImageUrls.removeAt(index);
+    });
+  }
+
   Future<List<String>> _uploadImages() async {
     List<String> imageUrls = [];
     final storage = FirebaseStorage.instance;
@@ -372,17 +471,8 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
     return imageUrls;
   }
 
-  void _submitForm() async {
+  void _updateForm() async {
     if (_formKey.currentState!.validate()) {
-      if (_images.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Please add at least one image'),
-              backgroundColor: Colors.red),
-        );
-        return;
-      }
-
       setState(() {
         _isLoading = true;
       });
@@ -393,7 +483,8 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
           throw Exception('No user logged in');
         }
 
-        List<String> imageUrls = await _uploadImages();
+        List<String> newImageUrls = await _uploadImages();
+        List<String> allImageUrls = [..._existingImageUrls, ...newImageUrls];
 
         Map<String, dynamic> hallData = {
           'userId': user.uid,
@@ -416,31 +507,21 @@ class _AddMarriageHallScreenState extends State<AddMarriageHallScreen> {
                     'price': service.price,
                   })
               .toList(),
-          'imageUrls': imageUrls,
+          'imageUrls': allImageUrls,
         };
 
         await FirebaseFirestore.instance
             .collection(widget.serviceName)
-            .add(hallData);
+            .doc(widget.documentId)
+            .update(hallData);
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('${widget.serviceName} added successfully'),
+              content: Text('${widget.serviceName} updated successfully'),
               backgroundColor: Colors.green),
         );
 
-        _formKey.currentState!.reset();
-        setState(() {
-          _timeSlots.clear();
-          _additionalServices = [
-            AdditionalService(name: 'Decor', price: 0),
-            AdditionalService(name: 'Catering', price: 0),
-            AdditionalService(name: 'DJ', price: 0),
-            AdditionalService(name: 'Photography', price: 0),
-            AdditionalService(name: 'Air Conditioning/Heating', price: 0),
-          ];
-          _images.clear();
-        });
+        Navigator.pop(context);
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

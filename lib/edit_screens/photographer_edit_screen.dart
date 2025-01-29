@@ -1,53 +1,22 @@
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
-class Service {
-  final String name;
-  final double price;
-  final String category;
+class EditPhotographerServicesForm extends StatefulWidget {
+  final String docId;
 
-  Service({
-    required this.name,
-    required this.price,
-    required this.category,
-  });
+  EditPhotographerServicesForm({required this.docId});
 
-  Map<String, dynamic> toJson() => {
-        'name': name,
-        'price': price,
-        'category': category,
-      };
-}
-
-class TimeSlot {
-  final String startTime;
-  final String endTime;
-  final int capacity;
-
-  TimeSlot({
-    required this.startTime,
-    required this.endTime,
-    required this.capacity,
-  });
-
-  Map<String, dynamic> toJson() => {
-        'startTime': startTime,
-        'endTime': endTime,
-        'capacity': capacity,
-      };
-}
-
-class PhotographerServicesForm extends StatefulWidget {
   @override
-  _PhotographerServicesFormState createState() =>
-      _PhotographerServicesFormState();
+  _EditPhotographerServicesFormState createState() =>
+      _EditPhotographerServicesFormState();
 }
 
-class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
+class _EditPhotographerServicesFormState
+    extends State<EditPhotographerServicesForm> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _locationController = TextEditingController();
@@ -55,6 +24,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
 
   List<File> _images = [];
   List<TimeSlot> _timeSlots = [];
+  List<String> _existingImageUrls = [];
 
   final Map<String, TextEditingController> _servicePriceControllers = {};
 
@@ -88,14 +58,49 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     ],
   };
 
+  bool _isLoading = true;
+
   @override
   void initState() {
     super.initState();
-    serviceCategories.forEach((category, services) {
-      services.forEach((service) {
-        _servicePriceControllers[service] = TextEditingController();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('Photographer')
+          .doc(widget.docId)
+          .get();
+
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        setState(() {
+          _nameController.text = data['photographerName'];
+          _locationController.text = data['location'];
+          _descriptionController.text = data['description'];
+          _existingImageUrls = List<String>.from(data['imageUrls']);
+          _timeSlots = (data['timeSlots'] as List)
+              .map((t) => TimeSlot.fromJson(t))
+              .toList();
+
+          // Load services
+          (data['services'] as List).forEach((s) {
+            final service = Service.fromJson(s);
+            _servicePriceControllers[service.name] =
+                TextEditingController(text: service.price.toString());
+          });
+
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading data: $e');
+      setState(() {
+        _isLoading = false;
       });
-    });
+    }
   }
 
   Future<void> _pickImages() async {
@@ -113,6 +118,12 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
   void _removeImage(int index) {
     setState(() {
       _images.removeAt(index);
+    });
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() {
+      _existingImageUrls.removeAt(index);
     });
   }
 
@@ -199,7 +210,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     return imageUrls;
   }
 
-  Future<void> _submitForm() async {
+  Future<void> _updateForm() async {
     if (!_formKey.currentState!.validate()) return;
 
     try {
@@ -214,7 +225,8 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
         },
       );
 
-      List<String> imageUrls = await _uploadImages();
+      List<String> newImageUrls = await _uploadImages();
+      List<String> allImageUrls = [..._existingImageUrls, ...newImageUrls];
 
       List<Service> services = [];
       serviceCategories.forEach((category, serviceList) {
@@ -238,17 +250,22 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
         'description': _descriptionController.text,
         'services': services.map((s) => s.toJson()).toList(),
         'timeSlots': _timeSlots.map((t) => t.toJson()).toList(),
-        'imageUrls': imageUrls,
-        'createdAt': FieldValue.serverTimestamp(),
+        'imageUrls': allImageUrls,
+        'updatedAt': FieldValue.serverTimestamp(),
       };
 
-      await FirebaseFirestore.instance.collection('Photographer').add(data);
+      await FirebaseFirestore.instance
+          .collection('Photographer')
+          .doc(widget.docId)
+          .update(data);
 
       Navigator.of(context).pop();
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Photographer services added successfully!')),
+        SnackBar(content: Text('Photographer services updated successfully!')),
       );
+
+      Navigator.of(context).pop(); // Go back to the previous screen
     } catch (e) {
       Navigator.of(context).pop();
 
@@ -260,9 +277,15 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: Text('Add Photographer Services'),
+        title: Text('Edit Photographer Services'),
         backgroundColor: Colors.blue[100],
         elevation: 0,
       ),
@@ -295,7 +318,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
               _buildSectionTitle('Availability'),
               _buildTimeSlotSection(),
               SizedBox(height: 24),
-              _buildSubmitButton(),
+              _buildUpdateButton(),
             ],
           ),
         ),
@@ -394,40 +417,77 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
         ),
-        if (_images.isNotEmpty)
+        if (_existingImageUrls.isNotEmpty || _images.isNotEmpty)
           Container(
             height: 120,
             child: ListView.builder(
               scrollDirection: Axis.horizontal,
-              itemCount: _images.length,
-              itemBuilder: (context, index) => Stack(
-                children: [
-                  Card(
-                    margin: EdgeInsets.all(8),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.file(
-                        _images[index],
-                        width: 100,
-                        height: 100,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: IconButton(
-                      icon: Icon(Icons.close, color: Colors.white),
-                      onPressed: () => _removeImage(index),
-                    ),
-                  ),
-                ],
-              ),
+              itemCount: _existingImageUrls.length + _images.length,
+              itemBuilder: (context, index) {
+                if (index < _existingImageUrls.length) {
+                  return _buildExistingImageItem(index);
+                } else {
+                  return _buildNewImageItem(index - _existingImageUrls.length);
+                }
+              },
             ),
           ),
+      ],
+    );
+  }
+
+  Widget _buildExistingImageItem(int index) {
+    return Stack(
+      children: [
+        Card(
+          margin: EdgeInsets.all(8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.network(
+              _existingImageUrls[index],
+              width: 100,
+              height: 100,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          child: IconButton(
+            icon: Icon(Icons.close, color: Colors.white),
+            onPressed: () => _removeExistingImage(index),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNewImageItem(int index) {
+    return Stack(
+      children: [
+        Card(
+          margin: EdgeInsets.all(8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(
+              _images[index],
+              width: 100,
+              height: 100,
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        Positioned(
+          right: 0,
+          top: 0,
+          child: IconButton(
+            icon: Icon(Icons.close, color: Colors.white),
+            onPressed: () => _removeImage(index),
+          ),
+        ),
       ],
     );
   }
@@ -445,7 +505,7 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
           ),
         ),
         ..._timeSlots.map((slot) => Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
+              margin: EdgeInsets.symmetric(vertical: 8),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               child: ListTile(
@@ -466,10 +526,10 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildUpdateButton() {
     return ElevatedButton(
-      onPressed: _submitForm,
-      child: Text('Add Photographer Services'),
+      onPressed: _updateForm,
+      child: Text('Update Photographer Services'),
       style: ElevatedButton.styleFrom(
         padding: EdgeInsets.symmetric(vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -485,5 +545,61 @@ class _PhotographerServicesFormState extends State<PhotographerServicesForm> {
     _servicePriceControllers.values
         .forEach((controller) => controller.dispose());
     super.dispose();
+  }
+}
+
+class Service {
+  final String name;
+  final double price;
+  final String category;
+
+  Service({
+    required this.name,
+    required this.price,
+    required this.category,
+  });
+
+  // Convert Service object to JSON
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'price': price,
+        'category': category,
+      };
+
+  // Create Service object from JSON
+  factory Service.fromJson(Map<String, dynamic> json) {
+    return Service(
+      name: json['name'],
+      price: json['price'],
+      category: json['category'],
+    );
+  }
+}
+
+class TimeSlot {
+  final String startTime;
+  final String endTime;
+  final int capacity;
+
+  TimeSlot({
+    required this.startTime,
+    required this.endTime,
+    required this.capacity,
+  });
+
+  // Convert TimeSlot object to JSON
+  Map<String, dynamic> toJson() => {
+        'startTime': startTime,
+        'endTime': endTime,
+        'capacity': capacity,
+      };
+
+  // Create TimeSlot object from JSON
+  factory TimeSlot.fromJson(Map<String, dynamic> json) {
+    return TimeSlot(
+      startTime: json['startTime'],
+      endTime: json['endTime'],
+      capacity: json['capacity'],
+    );
   }
 }
